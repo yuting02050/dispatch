@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>小傑派單轉換器</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap">
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
+<style>
+/* Layout: dispatch desk — paste on the left, one card per trip on the right, each card ready to copy */
+:root{
+  --bg:#eef1ed; --surface:#ffffff; --sunk:#f6f8f5; --ink:#1c2420; --muted:#5b6761; --line:#d3dad4;
+  --accent:#0f6e5c; --accent-ink:#ffffff; --accent-soft:#dcefe9;
+  --warn:#a3520a; --warn-bg:#fcefdf; --driver:#3d4f8a; --driver-soft:#e4e8f6;
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121715; --surface:#1a211e; --sunk:#151b18; --ink:#e4eae6; --muted:#98a49e; --line:#2d3732;
+  --accent:#4cc3a5; --accent-ink:#0b1f1a; --accent-soft:#183a32;
+  --warn:#f0a35a; --warn-bg:#2d2015; --driver:#9fb0ec; --driver-soft:#1f2640; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121715; --surface:#1a211e; --sunk:#151b18; --ink:#e4eae6; --muted:#98a49e; --line:#2d3732;
+  --accent:#4cc3a5; --accent-ink:#0b1f1a; --accent-soft:#183a32;
+  --warn:#f0a35a; --warn-bg:#2d2015; --driver:#9fb0ec; --driver-soft:#1f2640; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6}
+.wrap{max-width:1180px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.top{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 16px;margin-bottom:16px}
+h1{font-size:1.45rem;margin:0;font-weight:700;letter-spacing:.02em;text-wrap:balance}
+.sub{color:var(--muted);font-size:.9rem;margin:0}
+.grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:20px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.left{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+@media (max-width:860px){.left{position:static}}
+.label{font-size:.78rem;font-weight:700;letter-spacing:.08em;color:var(--muted)}
+textarea{width:100%;min-height:340px;resize:vertical;font:inherit;font-size:14px;line-height:1.55;color:var(--ink);background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+textarea:focus,input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button{font:inherit;font-size:.9rem;border-radius:7px;padding:7px 14px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+button:hover{border-color:var(--accent)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+button.line{background:#06c755;color:#fff;border-color:#06c755;font-weight:700}
+button.line:disabled{opacity:.45;cursor:not-allowed}
+.status{font-size:.82rem;color:var(--muted)}
+button.done{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+.check{display:flex;gap:6px;align-items:center;font-size:.9rem;color:var(--ink)}
+.hint{font-size:.82rem;color:var(--muted);margin:0}
+.right{display:flex;flex-direction:column;gap:14px;min-width:0}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.count{font-size:.9rem;color:var(--muted)}
+.warn{background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:10px 12px;font-size:.88rem}
+.warn b{display:block;margin-bottom:2px}
+.warn ul{margin:4px 0 0;padding-left:18px}
+.trip{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;min-width:0}
+.trip-head{display:flex;gap:10px;align-items:baseline;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--sunk);flex-wrap:wrap}
+.no{font-family:var(--f-mono);font-size:.8rem;color:var(--accent);font-weight:500}
+.trip-title{font-weight:700;min-width:0;overflow-wrap:anywhere}
+.pill{font-size:.75rem;border-radius:99px;padding:1px 9px;background:var(--accent-soft);color:var(--accent);font-weight:700}
+.fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:12px 14px}
+@media (max-width:520px){.fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.f{display:flex;flex-direction:column;gap:3px;min-width:0}
+.f.wide{grid-column:1/-1}
+.f span{font-size:.75rem;color:var(--muted);font-weight:500}
+.f input,.f select{font:inherit;font-size:.95rem;width:100%;min-width:0;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
+.f input[type=number]{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.outs{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0;border-top:1px solid var(--line)}
+@media (max-width:620px){.outs{grid-template-columns:minmax(0,1fr)}}
+.out{padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.out+.out{border-left:1px solid var(--line)}
+@media (max-width:620px){.out+.out{border-left:0;border-top:1px solid var(--line)}}
+.out-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tag{font-size:.78rem;font-weight:700;letter-spacing:.06em}
+.tag.d{color:var(--accent)} .tag.r{color:var(--driver)}
+pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--f-body);font-size:.88rem;line-height:1.55;background:var(--sunk);border-radius:6px;padding:10px;max-height:320px;overflow:auto}
+.out.r pre{background:var(--driver-soft)}
+.empty{padding:28px 16px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:10px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>小傑派單轉換器</h1>
+    <p class="sub">貼上客資版 → 自動產生刷群版（去個資）＋ 司機完整版（含收／回金）</p>
+  </header>
+
+  <div class="grid">
+    <section class="panel left">
+      <div class="label">客資版（從臨時單群組貼上）</div>
+      <textarea id="src" spellcheck="false" placeholder="把臨時單整段貼在這裡，可以一次貼很多單"></textarea>
+      <p class="hint">有特殊需求、非桃園機場、或桃園機場往返雙北桃園以外縣市時，會自動加標題列；其他行程在日期前加「明天」。</p>
+      <div class="row">
+        <button id="sample">載入範例</button>
+        <button id="clear">清空</button>
+      </div>
+      <p class="hint">新單可以直接接著貼在最下面，前面填好的車型和價格會留著；把文字刪掉，那趟的卡片就會消失。資料不會存起來，重新整理頁面就清掉。</p>
+    </section>
+
+    <section class="right">
+      <div class="bar">
+        <span class="count" id="count"></span>
+        <div class="row"><button class="primary" id="copyAll">複製全部刷群版</button><button class="line" id="shareAll">分享全部到群組</button></div>
+      </div>
+      <div class="status" id="liffStatus">LINE 連線中…</div>
+      <div id="warn" class="warn" hidden></div>
+      <div id="trips"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+const VEHS=['小車','休旅車','休旅車以上','大休旅','大車'];
+const SEP=/^[—\-─_=＿]{3,}\s*$/;
+const PHONE='(?:\\+?886[-\\s]?|0)9\\d{2}[-\\s]?\\d{3}[-\\s]?\\d{3}';
+const LAND='(?:[（(]0\\d{1,2}[)）]\\s*\\d{3,4}[-\\s]?\\d{4}|\\b0[2-8]\\d?[-\\s]\\d{3,4}[-\\s]?\\d{4}\\b)';
+const NAME=/[一-鿿]{1,3}(?:先生|小姐|太太|女士)/g;
+const LABEL=/^(姓名|聯絡人|聯絡電話|乘客姓名|旅客姓名|訂購人|訂車人|客人|電話|手機|LINE\s*ID|身分證|護照|E-?mail|信箱)\s*[:：]/i;
+const ADDR=/((?:路|街|大道)(?:[一二三四五六七八九十0-9０-９]+段)?)\s*[0-9０-９一二三四五六七八九十]+(?:巷|弄|號|樓|之|-|F|f)[^→，,、\n）)（(]*?(?=結束|出發|下車|上車|$|[→，,、\s）)（(])/gm;
+const TERMINAL=/(機場)\s*(?:第?[一二12１２]\s*航(?:廈|站)?|T\s*[12１２])/g;
+const BUILDING=/((?:路|街|大道|段|巷|弄))\s*(?:[（(][^）)\n]*[）)]|[\u4e00-\u9fff]{2,10}(?:社區|大樓|大廈|華廈|公寓|會館|山莊|新城|花園))/g;
+const NEEDS=[[/安全座椅|安椅/,'安椅'],[/增高墊/,'增高墊'],[/輪椅/,'輪椅'],[/寵物/,'寵物']];
+const P8H=/(包車\s*\d+\s*(?:H|h|小時)?\s*[=＝]\s*)([\d,]*)(\s*元)/g;
+const PDAY=/(每天\s*)([\d,]*)(\s*元)/g;
+const VEHW='(?:(?:小車|大車)\\s*)?(?:[五5９9九]\\s*人\\s*(?:車|座))|小車|大車';
+const PRICE='(?:(?:報價|價格|價錢|費用|車資|金額|總價|收費|共)\\s*[:：=＝]?\\s*)?(?:NT|TWD)?\\s*[$＄]\\s*[\\d,]+(?:\\s*元)?|[\\d,]{3,}\\s*[$＄]|(?:(?:報價|價格|價錢|費用|車資|金額|總價|收費|共)\\s*[:：=＝]?\\s*)?[\\d,]{3,}\\s*元';
+const VEHPRICE=new RegExp('(?:'+VEHW+')(?:\\s*[:：=＝,，]?\\s*(?:'+PRICE+'))?|(?:'+PRICE+')','g');
+const NOTNAME=/(車|發|達|機|件|李|箱|袋|船|站|場|港|點|分|座|時|路|街|號|樓|區|市|人|童|兒)$/;
+function stripNames(x){
+  x=x.replace(new RegExp('(?<=^|[，,\\s:：])([\\u4e00-\\u9fff]{2,4})\\s*[，,:：]?\\s*(?='+PHONE+')','g'),(m,n)=>NOTNAME.test(n)?m:'');
+  x=x.replace(new RegExp('('+PHONE+')\\s*[（(]?\\s*([\\u4e00-\\u9fff]{2,4})\\s*[）)]?','g'),(m,ph,n)=>NOTNAME.test(n)?m:ph);
+  return x;
+}
+const isHeader=l=>/\d{1,2}\/\d{1,2}/.test(l)&&/\d+\s*人/.test(l);
+const isTag=l=>/^\s*([（(][^）)]*[）)]|\d+[、.])\s*$/.test(l);
+const num=v=>v!==''&&v!=null&&!isNaN(+v);
+const fmt=v=>String(Math.round(+v));
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const src=document.getElementById('src');
+const tripsEl=document.getElementById('trips');
+let state={}, lines=[], trips=[], showTitle=true;
+
+function guessVeh(p,b,big){
+  if(big||p>4||b>4)return '大車';
+  const k=p+'-'+b;
+  if(k==='4-4'||k==='3-4')return '大休旅';
+  if(k==='4-3'||k==='3-3')return '休旅車以上';
+  return '小車';
+}
+function dayWord(m,d){
+  if(!m)return '';
+  const now=new Date(), t0=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  let dt=new Date(now.getFullYear(),m-1,d);
+  if((dt-t0)/864e5<-60)dt=new Date(now.getFullYear()+1,m-1,d);
+  const diff=Math.round((dt-t0)/864e5);
+  return diff===0?'今天':diff===1?'明天':diff===2?'後天':`${m}/${d}`;
+}
+function shortPlace(p){
+  p=p.replace(/\s/g,'').replace(/結束$/,'').replace(/（.*?）|\(.*?\)/g,'');
+  const m=p.match(/^(.{2})[市縣](.{1,3}?[區鄉鎮市])/);
+  return m?{city:m[1],dist:m[2].replace(/區$/,'')}:{name:p};
+}
+function rawStops(t){
+  const stops=[];let mode=null,dest=null;
+  for(let j=t.h+1;j<=t.e;j++){
+    const s=lines[j].trim();let m;
+    if((m=s.match(/^從以下地址依序到(.+?)[：:]?$/))){dest=m[1];mode=1;continue}
+    if((m=s.match(/^從(.+?)依序到以下地址/))){stops.push(m[1]);mode=1;continue}
+    if(mode&&(m=s.match(/^\d+[、.]\s*(.+)$/))){stops.push(m[1]);continue}
+    if(s.includes('→'))stops.push(...s.split('→').map(x=>x.trim()).filter(Boolean));
+  }
+  if(dest)stops.push(dest);
+  return stops.map(x=>x.replace(/\s/g,'').replace(/結束$/,'').replace(TERMINAL,'$1'));
+}
+function routeSummary(t){
+  const stops=rawStops(t);
+  const groups=[];
+  stops.map(shortPlace).forEach(p=>{
+    const g=groups[groups.length-1];
+    if(p.city&&g&&g.city===p.city){if(!g.dists.includes(p.dist))g.dists.push(p.dist)}
+    else groups.push(p.city?{city:p.city,dists:[p.dist]}:{name:p.name});
+  });
+  return groups.map(g=>g.name||g.city+g.dists.join('+')).join('→');
+}
+function fixTime(x){
+  return x.replace(/(凌晨|清晨|早上|上午|中午|下午|傍晚|晚上|半夜)?\s*(\d{1,2})[:：](\d{2})/g,(m,w,h,mm)=>{
+    let H=+h;
+    if(/下午|傍晚|晚上/.test(w||'')&&H<12)H+=12;
+    if(w==='中午'&&H<5)H+=12;
+    if(/凌晨|半夜/.test(w||'')&&H===12)H=0;
+    if(H>23)return m;
+    const word=H<5?'凌晨':H<10?'早上':H<12?'上午':H<13?'中午':'';
+    return word+String(H).padStart(2,'0')+':'+mm;
+  });
+}
+function kindOf(t){
+  const h=t.head;
+  if(/接機/.test(h))return '接機';if(/送機/.test(h))return '送機';
+  if(/接船/.test(h))return '接船';if(/送船/.test(h))return '送船';
+  return t.charter?'包車':'點對點';
+}
+function needsOf(t){
+  const span=lines.slice(t.h,t.e+1).join('\n');const out=[];
+  NEEDS.forEach(([re,name])=>{
+    const ln=span.split('\n').find(l=>re.test(l));if(!ln)return;
+    const n=(ln.match(/(\d+)\s*(?:張|個|台|座)/)||[])[1];
+    out.push(n?`(${n})${name}`:name);
+  });
+  return out;
+}
+const cityOf=p=>{const m=p.match(/^(.{2}[市縣])/);return m?m[1]:null};
+function autoTitle(t){
+  const stops=rawStops(t),needs=needsOf(t),kind=kindOf(t);
+  const airport=stops.find(x=>/機場/.test(x));
+  const ap=airport?airport.replace(/[（(].*$/,''):null;
+  const ty=ap&&/桃園/.test(ap);
+  const cities=[...new Set(stops.filter(x=>!/機場/.test(x)).map(cityOf).filter(Boolean))];
+  const farCity=ap&&cities.some(c=>!/^(台北|臺北|新北|桃園)/.test(c));
+  if(!(needs.length||(ap&&!ty)||farCity))return '';
+  const day=dayWord(t.m,t.d),v=t.st.veh,cs=cities.join('+');
+  let core;
+  if(kind==='接機'&&cs)core=`${ty?'':ap}接${cs}`;
+  else if(kind==='送機'&&cs)core=`${cs}送${ty?'機':ap}`;
+  else{const r=routeSummary(t);core=r?'，'+r:''}
+  return `${day}${v}${core}${needs.length?'，要'+needs.join('、'):''}`;
+}
+function footerOf(t){
+  return `*自己跑、不洗客、服務好、${t.st.veh}${kindOf(t)==='接機'?' R牌':'TR牌可'}，大可替小，可以的@我🙏🏻*`;
+}
+
+function parse(){
+  lines=src.value.replace(/\r/g,'').split('\n');
+  const heads=[];lines.forEach((l,i)=>{if(isHeader(l))heads.push(i)});
+  const next={},seen={};
+  trips=heads.map((h,k)=>{
+    const lim=k+1<heads.length?heads[k+1]:lines.length;
+    let e=h;
+    for(let j=h+1;j<lim;j++){if(SEP.test(lines[j].trim()))break;e=j}
+    while(e>h&&(lines[e].trim()===''||isTag(lines[e])||/^[+＋]$/.test(lines[e].trim())))e--;
+    let s=h;while(s-1>=0&&isTag(lines[s-1]))s--;
+    const span=lines.slice(h,e+1).join('\n');
+    const head=lines[h];
+    const charter=/包車|每天\s*[\d,]*\s*元/.test(span)||/^D\d/m.test(span);
+    const dm=head.match(/(\d{1,2})\/(\d{1,2})/);
+    const p=+(head.match(/(\d+)\s*人/)||[0,0])[1];
+    const bseg=(head.match(/人[、，,]?\s*([^，,]*?(?:件|行李))/)||[,''])[1];
+    const bm=bseg.match(/(\d+)\s*大/);
+    const b=bm?+bm[1]:(bseg.match(/\d+/g)||[]).reduce((a,x)=>a+ +x,0);
+    const big=/大車|九人|9人座|9人車/.test(span);
+    let cp='';const pm=span.match(/包車\s*\d+\s*(?:H|h|小時)?\s*[=＝]\s*([\d,]+)\s*元/)||span.match(/每天\s*([\d,]+)\s*元/);
+    if(pm)cp=pm[1].replace(/,/g,'');
+    if(!charter&&!cp){const tm=span.match(/[$＄]\s*([\d,]+)/)||span.match(/([\d,]{3,})\s*[$＄]/)||span.match(/([\d,]{3,})\s*元/);if(tm)cp=tm[1].replace(/,/g,'')}
+    const hk=head.trim();seen[hk]=(seen[hk]||0)+1;
+    const key=hk+'#'+seen[hk];
+    const t={h,s,e,charter,m:dm?+dm[1]:0,d:dm?+dm[2]:0,p,b,key,head};
+    let gv=guessVeh(p,b,big);
+    if(gv==='小車'&&/推車|安全座椅|安椅|增高墊|輪椅/.test(span))gv='休旅車';
+    t.st=state[key]||{veh:gv,shou:cp,hui:'',pai:'',paiEdited:false,title:'',titleEdited:false};
+    next[key]=t.st;
+    return t;
+  });
+  state=next;
+  trips.forEach(t=>{if(!t.st.titleEdited)t.st.title=autoTitle(t);syncPai(t)});
+}
+function syncPai(t){}
+
+function transform(l,j,t){
+  const s=l.trim();
+  if(/^\*/.test(s))return null;
+  if(/^「.*價格.*」$/.test(s))return null;
+  if(LABEL.test(s))return null;
+  if(/^\d+[、.]$/.test(s)||/^[+＋]$/.test(s))return null;
+  if(SEP.test(s))return '------';
+  let x=stripNames(l);
+  if(t&&!t.charter){
+    const before=x.trim();
+    x=x.replace(VEHPRICE,'').replace(/[（(]\s*[）)]/g,'').replace(/[，,]\s*[，,]/g,'，').replace(/^\s*[，,、]\s*/,'');
+    if(before&&!x.replace(/[\s，,、：:=＝]/g,''))return null;
+  }
+  if(t&&j===t.h)x=x.replace(/^\s*\d+\s*[、.]\s*/,'');
+  if(t&&(j===t.h||/^\s*D\d/.test(x)))x=fixTime(x);
+  if(t&&j===t.h){
+    const dw=dayWord(t.m,t.d);
+    if(!t.st.title.trim()&&/^[今明後]天$/.test(dw)&&!x.includes(dw))x=x.replace(/^(\s*)(\d{1,2}\/\d{1,2})/,'$1'+dw+'$2');
+    if(t.charter)x=x.replace(new RegExp('[，,]?\\s*'+PHONE,'g'),'');
+    else{
+      const tag=`${num(t.st.pai)?'$'+fmt(t.st.pai):''}（${t.st.veh}）`;
+      if(new RegExp(PHONE).test(x))x=x.replace(new RegExp(PHONE),tag);
+      else x=x.replace(/[，,]?\s*$/,'，'+tag);
+      const ti=x.indexOf(tag);
+      if(ti>0&&!/[，,]\s*$/.test(x.slice(0,ti)))x=x.slice(0,ti).replace(/\s+$/,'')+'，'+x.slice(ti);
+      if(kindOf(t)==='送機')x=x.replace(/出發/,'搭車');
+      x=x.replace(/(送機|接機|送船|接船)\s*(?![，,\s]|$)/,'$1，');
+    }
+  }
+  x=x.replace(new RegExp(PHONE,'g'),'').replace(new RegExp(LAND,'g'),'').replace(NAME,'').replace(ADDR,'$1').replace(TERMINAL,'$1').replace(BUILDING,'$1');
+  if(t&&t.charter){
+    const p=num(t.st.pai)?fmt(t.st.pai):'';
+    x=x.replace(P8H,(m,a,b,c)=>a+p+c).replace(PDAY,(m,a,b,c)=>a+(p||' ')+c).replace(/(超時[^。\n]*)。\s*$/,'$1');
+  }
+  x=x.replace(/[，,]\s*[，,]/g,'，').replace(/\s+$/,'').replace(/[，,]$/,'');
+  return x;
+}
+
+function generate(){
+  const tripAt={};trips.forEach((t,i)=>{for(let j=t.s;j<=t.e;j++)tripAt[j]=i});
+  const before={},after={};
+  trips.forEach(t=>{
+    if(t.st.title.trim())before[t.s]=[t.st.title.trim(),''];
+    after[t.e]=['',footerOf(t)];
+  });
+  const out=[],per=trips.map(()=>({d:[],r:[]}));
+  lines.forEach((l,j)=>{
+    const i=tripAt[j];
+    if(before[j]){out.push(...before[j]);if(i!==undefined)per[i].d.push(...before[j])}
+    const x=transform(l,j,i===undefined?null:trips[i]);
+    if(x!==null){out.push(x);if(i!==undefined)per[i].d.push(x)}
+    if(i!==undefined)per[i].r.push(l.replace(/\s+$/,''));
+    if(after[j]){out.push(...after[j]);if(i!==undefined)per[i].d.push(...after[j])}
+  });
+  trips.forEach((t,i)=>{
+    const parts=[];
+    if(num(t.st.shou))parts.push(`收${fmt(t.st.shou)}元`);
+    if(num(t.st.hui))parts.push(`回金${fmt(t.st.hui)}元`);
+    if(parts.length)per[i].r.push('',parts.join('／'));
+  });
+  const clean=a=>a.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+  const full=per.map(p=>clean(p.d)).filter(Boolean).join('\n------\n');
+  const warns=[];
+  full.split('\n').forEach(l=>{
+    if(new RegExp(PHONE).test(l)||new RegExp(LAND).test(l)||/\d\s*號/.test(l)||/先生|小姐|太太|女士/.test(l))warns.push(l.trim());
+  });
+  return{full,per:per.map(p=>({d:clean(p.d),r:clean(p.r)})),warns};
+}
+
+function render(){
+  tripsEl.innerHTML='';
+  document.getElementById('count').textContent=trips.length?`共 ${trips.length} 趟`:'';
+  if(!trips.length){
+    tripsEl.innerHTML=`<div class="empty">${src.value.trim()?'找不到行程。每趟的第一行需要有日期（例如 1/1）和人數（例如 2人3件）。':'左邊貼上臨時單，這裡會一趟一張卡片。'}</div>`;
+    update();return;
+  }
+  trips.forEach((t,i)=>{
+    const c=document.createElement('article');c.className='trip';
+    const label=t.head.replace(new RegExp('[，,]?\\s*'+PHONE,'g'),'').trim();
+    c.innerHTML=`
+      <div class="trip-head"><span class="no">#${i+1}</span><span class="trip-title">${esc(label)}</span>${t.charter?'<span class="pill">包車</span>':''}</div>
+      <div class="fields">
+        ${`<label class="f"><span>車型</span><select id="veh${i}">${VEHS.map(v=>`<option${v===t.st.veh?' selected':''}>${v}</option>`).join('')}${VEHS.includes(t.st.veh)?'':`<option selected>${esc(t.st.veh)}</option>`}</select></label>`}
+        <label class="f"><span>收（客人付）</span><input id="shou${i}" type="number" inputmode="numeric" value="${esc(t.st.shou)}"></label>
+        <label class="f"><span>回金</span><input id="hui${i}" type="number" inputmode="numeric" value="${esc(t.st.hui)}"></label>
+        <label class="f"><span>派價（可留空）</span><input id="pai${i}" type="number" inputmode="numeric" value="${esc(t.st.pai)}" placeholder="例：750"></label>
+        ${`<label class="f wide"><span>刷群標題列（空白就不加）</span><input id="title${i}" type="text" value="${esc(t.st.title)}"></label>`}
+      </div>
+      <div class="outs">
+        <div class="out d"><div class="out-head"><span class="tag d">刷群版</span><span class="row"><button data-copy="d" data-i="${i}">複製</button><button class="line" data-share="${i}">分享</button></span></div><pre id="d${i}"></pre></div>
+        <div class="out r"><div class="out-head"><span class="tag r">司機完整版</span><button data-copy="r" data-i="${i}">複製</button></div><pre id="r${i}"></pre></div>
+      </div>`;
+    tripsEl.appendChild(c);
+    const on=(id,ev,fn)=>{const el=document.getElementById(id+i);if(el)el.addEventListener(ev,fn)};
+    on('veh','change',e=>{t.st.veh=e.target.value;if(!t.st.titleEdited){t.st.title=autoTitle(t);document.getElementById('title'+i).value=t.st.title}update()});
+    on('shou','input',e=>{t.st.shou=e.target.value;update()});
+    on('hui','input',e=>{t.st.hui=e.target.value;update()});
+    on('pai','input',e=>{t.st.pai=e.target.value;update()});
+    on('title','input',e=>{t.st.title=e.target.value;t.st.titleEdited=true;update()});
+  });
+  update();
+}
+let last={full:'',per:[]};
+function update(){
+  last=generate();
+  last.per.forEach((p,i)=>{
+    const d=document.getElementById('d'+i),r=document.getElementById('r'+i);
+    if(d)d.textContent=p.d;if(r)r.textContent=p.r;
+  });
+  const w=document.getElementById('warn');
+  if(last.warns.length){
+    w.hidden=false;
+    w.innerHTML='<b>刷群版裡可能還有個資，發出前請看一下這幾行：</b><ul>'+last.warns.map(l=>`<li>${esc(l)}</li>`).join('')+'</ul>';
+  }else w.hidden=true;
+}
+
+async function copy(text,btn){
+  let ok=false;
+  try{await navigator.clipboard.writeText(text);ok=true}catch(e){
+    const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();try{ok=document.execCommand('copy')}catch(_){}ta.remove();
+  }
+  const old=btn.textContent;btn.textContent=ok?'已複製':'請手動選取';btn.classList.add('done');
+  setTimeout(()=>{btn.textContent=old;btn.classList.remove('done')},1400);
+}
+tripsEl.addEventListener('click',e=>{
+  const b=e.target.closest('button[data-copy]');if(!b)return;
+  const p=last.per[+b.dataset.i];if(p)copy(b.dataset.copy==='d'?p.d:p.r,b);
+});
+const LIFF_ID='在這裡貼上LIFF ID';
+let liffReady=false;
+const st=document.getElementById('liffStatus');
+(async()=>{
+  try{
+    if(!window.liff||/在這裡/.test(LIFF_ID))throw new Error('LIFF ID 還沒設定');
+    await liff.init({liffId:LIFF_ID});
+    if(!liff.isLoggedIn()){liff.login({redirectUri:location.href});return}
+    if(!liff.isApiAvailable('shareTargetPicker'))throw new Error('這個環境不支援分享，請在 LINE App 裡開啟');
+    liffReady=true;st.textContent='已連上 LINE，可以直接分享到群組。';
+  }catch(e){st.textContent='目前只能用「複製」：'+e.message}
+})();
+function chunks(text){
+  const parts=text.split('\n------\n'),out=[];let cur='';
+  parts.forEach(p=>{const n=cur?cur+'\n------\n'+p:p;if(n.length>4800&&cur){out.push(cur);cur=p}else cur=n});
+  if(cur)out.push(cur);return out;
+}
+async function share(text,btn){
+  if(!text)return;
+  if(!liffReady){copy(text,btn);return}
+  const msgs=chunks(text).map(t=>({type:'text',text:t}));
+  if(msgs.length>5){st.textContent='內容太長，請分批分享（一次最多約 5 則訊息）。';return}
+  try{
+    const res=await liff.shareTargetPicker(msgs,{isMultiple:true});
+    st.textContent=res?'已送出分享。':'已取消分享。';
+  }catch(e){st.textContent='分享失敗：'+(e.message||e)}
+}
+tripsEl.addEventListener('click',e=>{
+  const b=e.target.closest('button[data-share]');if(!b)return;
+  const p=last.per[+b.dataset.share];if(p)share(p.d,b);
+});
+document.getElementById('shareAll').addEventListener('click',e=>{share(last.full,e.target)});
+document.getElementById('copyAll').addEventListener('click',e=>{if(last.full)copy(last.full,e.target)});
+
+let tm;
+src.addEventListener('input',()=>{clearTimeout(tm);tm=setTimeout(()=>{parse();render()},250)});
+document.getElementById('clear').addEventListener('click',()=>{src.value='';state={};parse();render();src.focus()});
+
+function loadSample(){
+  const t=new Date();t.setDate(t.getDate()+1);const md=`${t.getMonth()+1}/${t.getDate()}`;
+  src.value=`${md}送機，15:00搭車，1人1件，0987-654-321
+
+從以下地址依序到桃園機場：
+1、台北市信義區信義路1號
+2、台北市大安區忠孝東路四段100巷5弄3號2樓
+——————————
+（基隆港）
+${md}接船，16:50梯次開始下船，2人4大2小件，0987-654-321
+
+基隆港（麗星郵輪、15:00靠港）→台北市信義區信義路1號
+——————————
+${md}，上午10:00出發，1人1件，0987-654-321
+
+桃園火車站→九份→十分→不厭亭→金瓜石→ 台北市大安區忠孝東路20號
+
+小車5人車，包車8H=4000元（超時200元/半小時）
+*行程以您為主，可隨時（含當下）修改調整，只限制：1、大概區域。2、超時。
+*超時採無條件進位，緩衝5分鐘。
+**如有停車費、車輛門票實付實銷**`;
+  state={};parse();
+  if(trips[0]){trips[0].st.shou='1500';trips[0].st.hui='300';trips[0].st.pai='750'}
+  if(trips[2]){trips[2].st.hui='800'}
+  render();
+}
+document.getElementById('sample').addEventListener('click',loadSample);
+parse();render();
+})();
+</script>
+</body>
+</html>
