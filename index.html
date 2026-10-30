@@ -105,7 +105,7 @@ pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--f-bod
     <section class="right">
       <div class="bar">
         <span class="count" id="count"></span>
-        <div class="row"><button class="primary" id="copyAll">複製全部刷群版</button><button class="line" id="shareAll">分享全部到群組</button></div>
+        <div class="row"><button class="primary" id="copyAll">複製全部刷群版</button><button class="line" id="fwdAll">轉傳全部</button><button id="shareAll">分享全部（清單版）</button></div>
       </div>
       <div class="status" id="liffStatus">LINE 連線中…</div>
       <div id="warn" class="warn" hidden></div>
@@ -360,7 +360,7 @@ function render(){
         ${`<label class="f wide"><span>刷群標題列（空白就不加）</span><input id="title${i}" type="text" value="${esc(t.st.title)}"></label>`}
       </div>
       <div class="outs">
-        <div class="out d"><div class="out-head"><span class="tag d">刷群版</span><span class="row"><button data-copy="d" data-i="${i}">複製</button><button class="line" data-share="${i}">分享</button></span></div><pre id="d${i}"></pre></div>
+        <div class="out d"><div class="out-head"><span class="tag d">刷群版</span><span class="row"><button data-copy="d" data-i="${i}">複製</button><button class="line" data-fwd="${i}">轉傳</button><button data-share="${i}">清單版</button></span></div><pre id="d${i}"></pre></div>
         <div class="out r"><div class="out-head"><span class="tag r">司機完整版</span><button data-copy="r" data-i="${i}">複製</button></div><pre id="r${i}"></pre></div>
       </div>`;
     tripsEl.appendChild(c);
@@ -427,6 +427,17 @@ async function share(text,btn){
     st.textContent=res?'已送出分享。':'已取消分享。';
   }catch(e){st.textContent='分享失敗：'+(e.message||e)}
 }
+function fwd(text){
+  if(!text)return;
+  const url='https://line.me/R/share?text='+encodeURIComponent(text);
+  try{ if(liffReady&&liff.isInClient()){liff.openWindow({url,external:false});return} }catch(e){}
+  location.href=url;
+}
+tripsEl.addEventListener('click',e=>{
+  const b=e.target.closest('button[data-fwd]');if(!b)return;
+  const p=last.per[+b.dataset.fwd];if(p)fwd(p.d);
+});
+document.getElementById('fwdAll').addEventListener('click',()=>fwd(last.full));
 tripsEl.addEventListener('click',e=>{
   const b=e.target.closest('button[data-share]');if(!b)return;
   const p=last.per[+b.dataset.share];if(p)share(p.d,b);
