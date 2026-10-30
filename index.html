@@ -530,7 +530,7 @@ document.getElementById('stageAll').addEventListener('click',async e=>{
   if(stageIdx>=texts.length)stageIdx=0;
   const batch=texts.slice(stageIdx,stageIdx+5);
   try{
-    const res=await liff.shareTargetPicker(batch.map(t=>({type:'text',text:t.slice(0,4900)})),{isMultiple:false});
+    const res=await liff.shareTargetPicker(batch.map(t=>({type:'text',text:t.slice(0,4900)})),{isMultiple:true});
     if(!res){st.textContent='已取消，沒有送出。';return}
     stageIdx+=batch.length;
     if(stageIdx<texts.length){
