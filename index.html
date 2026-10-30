@@ -140,6 +140,7 @@ const ADDR=/((?:路|街|大道)(?:[一二三四五六七八九十0-9０-９]+段
 const ARROW=/\s*(?:[—\-─－–━=]{1,4}\s*[》>〉]|➡️?|⇒|→)\s*/g;
 const DATE=/(\d{1,2})\s*(?:\/|月)\s*(\d{1,2})/;
 const NOTE=/^\s*(?:⚠|❗|‼|！|!|\*|＊|※)/;
+const KEEPNOTE=/舉牌|無[菸煙]|不抽[菸煙]|不安排|不要安排|不派|安全座椅|安椅|增高墊|提籃|收據|五年以內|代替|無托運|出關|快速通關/;
 const BOILER=/行程以您為主|無條件進位|實付實銷|食宿自理|挪用|報價全含|多日包車價格/;
 const NOTNAMEW=/[機車發達件李人稅派旅座趟程天日號時單點站場港改增搭含無大小休]/;
 function prep(l){return l.replace(/["“”＂]/g,'').replace(ARROW,'→').replace(/桃園國際機場/g,'桃園機場').replace(/\s+$/,'')}
@@ -305,7 +306,8 @@ function keepLine(s,t,j){
   if(j===t.h)return true;
   if(!s)return true;
   if(BOILER.test(s))return false;
-  if(NOTE.test(s))return true;
+  if(KEEPNOTE.test(s))return true;
+  if(NOTE.test(s))return false;
   if(/^D\d/.test(s))return true;
   if(s.includes('→'))return true;
   if(/^從.+依序到/.test(s))return true;
@@ -325,7 +327,15 @@ function cleanHeader(x){
   }).join('，');
 }
 function transform(l,j,t){
-  if(t){l=prep(l);if(!keepLine(l.trim(),t,j))return null}
+  if(t){
+    l=prep(l);const s0=l.trim();
+    if(!keepLine(s0,t,j))return null;
+    if(j!==t.h&&KEEPNOTE.test(s0)){
+      if(/收據/.test(s0))return '⚠️請提供空白計程車收據';
+      if(/舉牌/.test(s0))return '⚠️需舉牌';
+      return s0.replace(new RegExp(PHONE,'g'),'');
+    }
+  }
   const s=l.trim();
   if(/^\*/.test(s)&&!t)return null;
   if(/^「.*價格.*」$/.test(s))return null;
