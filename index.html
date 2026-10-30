@@ -119,7 +119,7 @@ pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--f-bod
     <section class="right">
       <div class="bar">
         <span class="count" id="count"></span>
-        <div class="row"><button class="primary" id="copyAll">複製全部刷群版</button><button class="line" id="fwdAll">轉傳全部</button></div>
+        <div class="row"><button class="primary" id="copyAll">複製全部刷群版</button><button class="line" id="fwdAll">轉傳全部</button><button class="line" id="stageAll">分段送到暫存</button></div>
       </div>
       <div class="status" id="liffStatus">LINE 連線中…</div>
       <div id="warn" class="warn" hidden></div>
@@ -407,7 +407,7 @@ function generate(){
 }
 
 function render(){
-  tripsEl.innerHTML='';
+  tripsEl.innerHTML='';if(typeof resetStage==='function')resetStage();
   document.getElementById('count').textContent=trips.length?`共 ${trips.length} 趟`:'';
   if(!trips.length){
     tripsEl.innerHTML=`<div class="empty">${src.value.trim()?'找不到行程。每趟的第一行需要有日期（例如 1/1）和人數（例如 2人3件）。':'左邊貼上臨時單，這裡會一趟一張卡片。'}</div>`;
@@ -519,6 +519,29 @@ tripsEl.addEventListener('click',e=>{
   const p=last.per[+b.dataset.fwd];if(p)fwd(p.d);
 });
 document.getElementById('fwdAll').addEventListener('click',()=>fwd(last.full));
+let stageIdx=0;
+function resetStage(){stageIdx=0;const b=document.getElementById('stageAll');if(b)b.textContent='分段送到暫存'}
+document.getElementById('stageAll').addEventListener('click',async e=>{
+  const btn=e.target;
+  const texts=last.per.map(p=>p.d).filter(Boolean);
+  if(!texts.length)return;
+  let ok=false;try{ok=liffReady&&liff.isApiAvailable('shareTargetPicker')}catch(_){}
+  if(!ok){st.textContent='這個功能要在 LINE 裡打開轉換器才能用。';return}
+  if(stageIdx>=texts.length)stageIdx=0;
+  const batch=texts.slice(stageIdx,stageIdx+5);
+  try{
+    const res=await liff.shareTargetPicker(batch.map(t=>({type:'text',text:t.slice(0,4900)})),{isMultiple:false});
+    if(!res){st.textContent='已取消，沒有送出。';return}
+    stageIdx+=batch.length;
+    if(stageIdx<texts.length){
+      btn.textContent=`送下一批（第${stageIdx+1}～${Math.min(stageIdx+5,texts.length)}趟）`;
+      st.textContent=`已送出第 1～${stageIdx} 趟，還有 ${texts.length-stageIdx} 趟，請再按一次。`;
+    }else{
+      resetStage();
+      st.textContent=`${texts.length} 趟都送到暫存了。到暫存群組長按訊息、勾選要轉傳的幾則，再按轉傳。`;
+    }
+  }catch(err){st.textContent='送出失敗：'+(err.message||err)}
+});
 tripsEl.addEventListener('click',e=>{
   const b=e.target.closest('button[data-share]');if(!b)return;
   const p=last.per[+b.dataset.share];if(p)share(p.d,b);
