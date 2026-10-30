@@ -113,7 +113,7 @@ pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--f-bod
         <button id="sample">載入範例</button>
         <button id="clear">清空</button>
       </div>
-      <p class="hint">新單可以直接接著貼在最下面，前面填好的車型和價格會留著；把文字刪掉，那趟的卡片就會消失。資料不會存起來，重新整理頁面就清掉。</p>
+      <p class="hint">新單可以直接接著貼在最下面，前面填好的車型和價格會留著；把文字刪掉，那趟的卡片就會消失。關掉再打開，還沒派完的資料會留著，按「清空」才會全部清掉。資料只存在這支手機上。</p>
     </section>
 
     <section class="right">
@@ -442,8 +442,9 @@ function render(){
 }
 let last={full:'',per:[]};
 function fit(el){el.style.height='auto';el.style.height=(el.scrollHeight+2)+'px'}
+function save(){try{localStorage.setItem('srcText',src.value);localStorage.setItem('tripState',JSON.stringify(state))}catch(e){}}
 function update(fromEdit){
-  last=generate();
+  last=generate();save();
   last.per.forEach((p,i)=>{
     const d=document.getElementById('d'+i),r=document.getElementById('r'+i),dr=document.getElementById('dr'+i);
     if(d&&!(fromEdit&&document.activeElement===d)){d.value=p.d}
@@ -536,7 +537,12 @@ src.addEventListener('input',()=>{clearTimeout(tm);tm=setTimeout(()=>{parse();re
     el.addEventListener('change',()=>{root.classList.toggle(cls,!el.checked);try{localStorage.setItem(id,el.checked?'1':'0')}catch(e){};update()});
   });
 })();
-document.getElementById('clear').addEventListener('click',()=>{src.value='';state={};parse();render();src.focus()});
+document.getElementById('clear').addEventListener('click',e=>{
+  const b=e.target;
+  if(!b.dataset.armed){b.dataset.armed='1';b.textContent='再按一次確定清空';setTimeout(()=>{delete b.dataset.armed;b.textContent='清空'},3000);return}
+  delete b.dataset.armed;b.textContent='清空';
+  src.value='';state={};try{localStorage.removeItem('srcText');localStorage.removeItem('tripState')}catch(_){}
+  parse();render();src.focus()});
 
 function loadSample(){
   const t=new Date();t.setDate(t.getDate()+1);const md=`${t.getMonth()+1}/${t.getDate()}`;
@@ -565,6 +571,7 @@ ${md}，上午10:00出發，1人1件，0987-654-321
   render();
 }
 document.getElementById('sample').addEventListener('click',loadSample);
+try{const t=localStorage.getItem('srcText');if(t){src.value=t;state=JSON.parse(localStorage.getItem('tripState')||'{}')||{}}}catch(e){}
 parse();render();
 })();
 </script>
