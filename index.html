@@ -47,6 +47,16 @@ button.primary{background:var(--accent);color:var(--accent-ink);border-color:var
 button.line{background:#06c755;color:#fff;border-color:#06c755;font-weight:700}
 button.line:disabled{opacity:.45;cursor:not-allowed}
 .status{font-size:.82rem;color:var(--muted)}
+button.del{margin-left:auto;font-size:.8rem;padding:4px 10px;color:var(--muted)}
+button.del.armed{background:var(--warn-bg);color:var(--warn);border-color:var(--warn)}
+button.link{border:0;background:none;padding:0;color:var(--accent);font-size:.8rem;text-decoration:underline}
+.mini{display:block}
+.opts{display:flex;flex-direction:column;gap:6px}
+textarea.outta{min-height:120px;resize:none;overflow:hidden;font-family:var(--f-body);font-size:.88rem;line-height:1.55;background:var(--sunk);border-radius:6px;padding:10px;border:1px solid transparent}
+textarea.outta:focus{border-color:var(--accent)}
+.hide-fields .fields{display:none}
+.hide-driver .out.r{display:none}
+.hide-driver .outs{grid-template-columns:minmax(0,1fr)}
 button.done{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
 .check{display:flex;gap:6px;align-items:center;font-size:.9rem;color:var(--ink)}
 .hint{font-size:.82rem;color:var(--muted);margin:0}
@@ -95,6 +105,10 @@ pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--f-bod
       <div class="label">客資版（從臨時單群組貼上）</div>
       <textarea id="src" spellcheck="false" placeholder="把臨時單整段貼在這裡，可以一次貼很多單"></textarea>
       <p class="hint">有特殊需求、非桃園機場、或桃園機場往返雙北桃園以外縣市時，會自動加標題列；其他行程在日期前加「明天」。</p>
+      <div class="opts">
+        <label class="check"><input type="checkbox" id="optFields"> 顯示輸入欄（車型、派價、收、回金、標題）</label>
+        <label class="check"><input type="checkbox" id="optDriver"> 顯示司機完整版</label>
+      </div>
       <div class="row">
         <button id="sample">載入範例</button>
         <button id="clear">清空</button>
@@ -105,7 +119,7 @@ pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--f-bod
     <section class="right">
       <div class="bar">
         <span class="count" id="count"></span>
-        <div class="row"><button class="primary" id="copyAll">複製全部刷群版</button><button class="line" id="fwdAll">轉傳全部</button><button id="shareAll">分享全部（清單版）</button></div>
+        <div class="row"><button class="primary" id="copyAll">複製全部刷群版</button><button class="line" id="fwdAll">轉傳全部</button></div>
       </div>
       <div class="status" id="liffStatus">LINE 連線中…</div>
       <div id="warn" class="warn" hidden></div>
@@ -122,7 +136,13 @@ const PHONE='(?:\\+?886[-\\s]?|0)9\\d{2}[-\\s]?\\d{3}[-\\s]?\\d{3}';
 const LAND='(?:[（(]0\\d{1,2}[)）]\\s*\\d{3,4}[-\\s]?\\d{4}|\\b0[2-8]\\d?[-\\s]\\d{3,4}[-\\s]?\\d{4}\\b)';
 const NAME=/[一-鿿]{1,3}(?:先生|小姐|太太|女士)/g;
 const LABEL=/^(姓名|聯絡人|聯絡電話|乘客姓名|旅客姓名|訂購人|訂車人|客人|電話|手機|LINE\s*ID|身分證|護照|E-?mail|信箱)\s*[:：]/i;
-const ADDR=/((?:路|街|大道)(?:[一二三四五六七八九十0-9０-９]+段)?)\s*[0-9０-９一二三四五六七八九十]+(?:巷|弄|號|樓|之|-|F|f)[^→，,、\n）)（(]*?(?=結束|出發|下車|上車|$|[→，,、\s）)（(])/gm;
+const ADDR=/((?:路|街|大道)(?:[一二三四五六七八九十0-9０-９]+段)?)\s*[0-9０-９][^→，,、\n]*?(?=結束|出發|下車|上車|$|[→，,、])/gm;
+const ARROW=/\s*(?:[—\-─－–━=]{1,4}\s*[》>〉]|➡️?|⇒|→)\s*/g;
+const DATE=/(\d{1,2})\s*(?:\/|月)\s*(\d{1,2})/;
+const NOTE=/^\s*(?:⚠|❗|‼|！|!|\*|＊|※)/;
+const BOILER=/行程以您為主|無條件進位|實付實銷|食宿自理|挪用|報價全含|多日包車價格/;
+const NOTNAMEW=/[機車發達件李人稅派旅座趟程天日號時單點站場港改增搭含無大小休]/;
+function prep(l){return l.replace(/["“”＂]/g,'').replace(ARROW,'→').replace(/桃園國際機場/g,'桃園機場').replace(/\s+$/,'')}
 const TERMINAL=/(機場)\s*(?:第?[一二12１２]\s*航(?:廈|站)?|T\s*[12１２])/g;
 const BUILDING=/((?:路|街|大道|段|巷|弄))\s*(?:[（(][^）)\n]*[）)]|[\u4e00-\u9fff]{2,10}(?:社區|大樓|大廈|華廈|公寓|會館|山莊|新城|花園))/g;
 const NEEDS=[[/安全座椅|安椅/,'安椅'],[/增高墊/,'增高墊'],[/輪椅/,'輪椅'],[/寵物/,'寵物']];
@@ -137,7 +157,7 @@ function stripNames(x){
   x=x.replace(new RegExp('('+PHONE+')\\s*[（(]?\\s*([\\u4e00-\\u9fff]{2,4})\\s*[）)]?','g'),(m,ph,n)=>NOTNAME.test(n)?m:ph);
   return x;
 }
-const isHeader=l=>/\d{1,2}\/\d{1,2}/.test(l)&&/\d+\s*人/.test(l);
+const isHeader=l=>DATE.test(l)&&/\d+\s*人/.test(l)&&!NOTE.test(l)&&!/^\s*[（(]?如/.test(l);
 const isTag=l=>/^\s*([（(][^）)]*[）)]|\d+[、.])\s*$/.test(l);
 const num=v=>v!==''&&v!=null&&!isNaN(+v);
 const fmt=v=>String(Math.round(+v));
@@ -170,7 +190,7 @@ function shortPlace(p){
 function rawStops(t){
   const stops=[];let mode=null,dest=null;
   for(let j=t.h+1;j<=t.e;j++){
-    const s=lines[j].trim();let m;
+    const s=prep(lines[j]).trim();let m;
     if((m=s.match(/^從以下地址依序到(.+?)[：:]?$/))){dest=m[1];mode=1;continue}
     if((m=s.match(/^從(.+?)依序到以下地址/))){stops.push(m[1]);mode=1;continue}
     if(mode&&(m=s.match(/^\d+[、.]\s*(.+)$/))){stops.push(m[1]);continue}
@@ -248,7 +268,7 @@ function parse(){
     const span=lines.slice(h,e+1).join('\n');
     const head=lines[h];
     const charter=/包車|每天\s*[\d,]*\s*元/.test(span)||/^D\d/m.test(span);
-    const dm=head.match(/(\d{1,2})\/(\d{1,2})/);
+    const dm=head.match(DATE);
     const p=+(head.match(/(\d+)\s*人/)||[0,0])[1];
     const bseg=(head.match(/人[、，,]?\s*([^，,]*?(?:件|行李))/)||[,''])[1];
     const bm=bseg.match(/(\d+)\s*大/);
@@ -270,15 +290,50 @@ function parse(){
   trips.forEach(t=>{if(!t.st.titleEdited)t.st.title=autoTitle(t);syncPai(t)});
 }
 function syncPai(t){}
+function deleteTrip(i){
+  const t=trips[i];if(!t)return;
+  let a=t.s,b=t.e;
+  const prevEnd=i>0?trips[i-1].e:-1;
+  while(a-1>prevEnd&&!SEP.test(lines[a-1].trim()))a--;
+  while(b+1<lines.length&&(/^\s*$/.test(lines[b+1])||SEP.test(lines[b+1].trim())||/^\s*[+＋]\s*$/.test(lines[b+1])))b++;
+  lines.splice(a,b-a+1);
+  src.value=lines.join('\n').replace(/^\s+/,'');
+  parse();render();
+}
 
+function keepLine(s,t,j){
+  if(j===t.h)return true;
+  if(!s)return true;
+  if(BOILER.test(s))return false;
+  if(NOTE.test(s))return true;
+  if(/^D\d/.test(s))return true;
+  if(s.includes('→'))return true;
+  if(/^從.+依序到/.test(s))return true;
+  if(/^\d+[、.]\s*\S*(市|縣|區|鄉|鎮|路|街|機場|港|站)/.test(s))return true;
+  if(/^[（(][^）)]*(機場|港|碼頭)[）)]$/.test(s))return true;
+  if(t.charter&&/包車|每天|超時|人車|人座/.test(s))return true;
+  return false;
+}
+function cleanHeader(x){
+  x=x.replace(/(\d{1,2})\s*月\s*(\d{1,2})\s*[號日]?/,'$1/$2');
+  x=x.replace(/[（(]\s*(?:小車|大車|休旅車?|大休旅)?\s*(?:含稅|未稅)[^）)]*[）)]?/g,'');
+  return x.split(/[，,]/).filter(seg=>{
+    const g=seg.trim();
+    if(/^[A-Za-z][A-Za-z .'\-]{2,}$/.test(g)&&!/\d/.test(g))return false;
+    if(/^[\u4e00-\u9fff]{2,4}$/.test(g)&&!NOTNAMEW.test(g))return false;
+    return true;
+  }).join('，');
+}
 function transform(l,j,t){
+  if(t){l=prep(l);if(!keepLine(l.trim(),t,j))return null}
   const s=l.trim();
-  if(/^\*/.test(s))return null;
+  if(/^\*/.test(s)&&!t)return null;
   if(/^「.*價格.*」$/.test(s))return null;
   if(LABEL.test(s))return null;
   if(/^\d+[、.]$/.test(s)||/^[+＋]$/.test(s))return null;
   if(SEP.test(s))return '------';
-  let x=stripNames(l);
+  let x=stripNames(l).replace(/舉牌內容\s*[：:].*$/,'需舉牌');
+  if(t&&j===t.h)x=cleanHeader(x);
   if(t&&!t.charter){
     const before=x.trim();
     x=x.replace(VEHPRICE,'').replace(/[（(]\s*[）)]/g,'').replace(/[，,]\s*[，,]/g,'，').replace(/^\s*[，,、]\s*/,'');
@@ -332,12 +387,13 @@ function generate(){
     if(parts.length)per[i].r.push('',parts.join('／'));
   });
   const clean=a=>a.join('\n').replace(/\n{3,}/g,'\n\n').trim();
-  const full=per.map(p=>clean(p.d)).filter(Boolean).join('\n------\n');
+  const out2=per.map((p,i)=>{const base=clean(p.d),st=trips[i].st;return{base,eff:(st.ov!=null&&st.ovBase===base)?st.ov:base,r:clean(p.r)}});
+  const full=out2.map(o=>o.eff).filter(Boolean).join('\n------\n');
   const warns=[];
   full.split('\n').forEach(l=>{
-    if(new RegExp(PHONE).test(l)||new RegExp(LAND).test(l)||/\d\s*號/.test(l)||/先生|小姐|太太|女士/.test(l))warns.push(l.trim());
+    if(new RegExp(PHONE).test(l)||new RegExp(LAND).test(l)||/\d\s*號/.test(l)||/先生|小姐|太太|女士/.test(l)||/[A-Za-z]{2,}\s+[A-Za-z]{2,}/.test(l))warns.push(l.trim());
   });
-  return{full,per:per.map(p=>({d:clean(p.d),r:clean(p.r)})),warns};
+  return{full,per:out2.map(o=>({d:o.eff,base:o.base,r:o.r})),warns};
 }
 
 function render(){
@@ -351,7 +407,7 @@ function render(){
     const c=document.createElement('article');c.className='trip';
     const label=t.head.replace(new RegExp('[，,]?\\s*'+PHONE,'g'),'').trim();
     c.innerHTML=`
-      <div class="trip-head"><span class="no">#${i+1}</span><span class="trip-title">${esc(label)}</span>${t.charter?'<span class="pill">包車</span>':''}</div>
+      <div class="trip-head"><span class="no">#${i+1}</span><span class="trip-title">${esc(label)}</span>${t.charter?'<span class="pill">包車</span>':''}<button class="del" data-del="${i}">派完，刪除</button></div>
       <div class="fields">
         ${`<label class="f"><span>車型</span><select id="veh${i}">${VEHS.map(v=>`<option${v===t.st.veh?' selected':''}>${v}</option>`).join('')}${VEHS.includes(t.st.veh)?'':`<option selected>${esc(t.st.veh)}</option>`}</select></label>`}
         <label class="f"><span>收（客人付）</span><input id="shou${i}" type="number" inputmode="numeric" value="${esc(t.st.shou)}"></label>
@@ -360,7 +416,7 @@ function render(){
         ${`<label class="f wide"><span>刷群標題列（空白就不加）</span><input id="title${i}" type="text" value="${esc(t.st.title)}"></label>`}
       </div>
       <div class="outs">
-        <div class="out d"><div class="out-head"><span class="tag d">刷群版</span><span class="row"><button data-copy="d" data-i="${i}">複製</button><button class="line" data-fwd="${i}">轉傳</button><button data-share="${i}">清單版</button></span></div><pre id="d${i}"></pre></div>
+        <div class="out d"><div class="out-head"><span class="tag d">刷群版</span><span class="row"><button data-copy="d" data-i="${i}">複製</button><button class="line" data-fwd="${i}">轉傳</button></span></div><textarea class="outta" id="d${i}" spellcheck="false"></textarea><span class="mini" id="dr${i}" hidden><button class="link" data-reset="${i}">還原成自動產生的內容</button></span></div>
         <div class="out r"><div class="out-head"><span class="tag r">司機完整版</span><button data-copy="r" data-i="${i}">複製</button></div><pre id="r${i}"></pre></div>
       </div>`;
     tripsEl.appendChild(c);
@@ -370,15 +426,20 @@ function render(){
     on('hui','input',e=>{t.st.hui=e.target.value;update()});
     on('pai','input',e=>{t.st.pai=e.target.value;update()});
     on('title','input',e=>{t.st.title=e.target.value;t.st.titleEdited=true;update()});
+    on('d','input',e=>{t.st.ov=e.target.value;t.st.ovBase=last.per[i]&&last.per[i].base;update(true)});
   });
   update();
 }
 let last={full:'',per:[]};
-function update(){
+function fit(el){el.style.height='auto';el.style.height=(el.scrollHeight+2)+'px'}
+function update(fromEdit){
   last=generate();
   last.per.forEach((p,i)=>{
-    const d=document.getElementById('d'+i),r=document.getElementById('r'+i);
-    if(d)d.textContent=p.d;if(r)r.textContent=p.r;
+    const d=document.getElementById('d'+i),r=document.getElementById('r'+i),dr=document.getElementById('dr'+i);
+    if(d&&!(fromEdit&&document.activeElement===d)){d.value=p.d}
+    if(d)fit(d);
+    if(dr)dr.hidden=(p.d===p.base);
+    if(r)r.textContent=p.r;
   });
   const w=document.getElementById('warn');
   if(last.warns.length){
@@ -400,6 +461,16 @@ tripsEl.addEventListener('click',e=>{
   const b=e.target.closest('button[data-copy]');if(!b)return;
   const p=last.per[+b.dataset.i];if(p)copy(b.dataset.copy==='d'?p.d:p.r,b);
 });
+const delArm={};
+tripsEl.addEventListener('click',e=>{
+  const rb=e.target.closest('button[data-reset]');
+  if(rb){const t=trips[+rb.dataset.reset];if(t){t.st.ov=null;update()}return}
+  const b=e.target.closest('button[data-del]');if(!b)return;
+  const i=+b.dataset.del;
+  if(delArm[i]){deleteTrip(i);return}
+  delArm[i]=1;b.textContent='再按一次確定刪除';b.classList.add('armed');
+  setTimeout(()=>{delete delArm[i];if(b.isConnected){b.textContent='派完，刪除';b.classList.remove('armed')}},3000);
+});
 const LIFF_ID='2012285713-filVz2D1';
 let liffReady=false;
 const st=document.getElementById('liffStatus');
@@ -408,9 +479,8 @@ const st=document.getElementById('liffStatus');
     if(!window.liff||/在這裡/.test(LIFF_ID))throw new Error('LIFF ID 還沒設定');
     await liff.init({liffId:LIFF_ID});
     if(!liff.isLoggedIn()){liff.login({redirectUri:location.href});return}
-    if(!liff.isApiAvailable('shareTargetPicker'))throw new Error('這個環境不支援分享，請在 LINE App 裡開啟');
-    liffReady=true;st.textContent='已連上 LINE，可以直接分享到群組。';
-  }catch(e){st.textContent='目前只能用「複製」：'+e.message}
+    liffReady=true;st.textContent='';
+  }catch(e){st.textContent=''}
 })();
 function chunks(text){
   const parts=text.split('\n------\n'),out=[];let cur='';
@@ -442,11 +512,20 @@ tripsEl.addEventListener('click',e=>{
   const b=e.target.closest('button[data-share]');if(!b)return;
   const p=last.per[+b.dataset.share];if(p)share(p.d,b);
 });
-document.getElementById('shareAll').addEventListener('click',e=>{share(last.full,e.target)});
+
 document.getElementById('copyAll').addEventListener('click',e=>{if(last.full)copy(last.full,e.target)});
 
 let tm;
 src.addEventListener('input',()=>{clearTimeout(tm);tm=setTimeout(()=>{parse();render()},250)});
+(function(){
+  const root=document.documentElement,keys={optFields:'hide-fields',optDriver:'hide-driver'};
+  Object.entries(keys).forEach(([id,cls])=>{
+    const el=document.getElementById(id);let on=false;
+    try{on=localStorage.getItem(id)==='1'}catch(e){}
+    el.checked=on;root.classList.toggle(cls,!on);
+    el.addEventListener('change',()=>{root.classList.toggle(cls,!el.checked);try{localStorage.setItem(id,el.checked?'1':'0')}catch(e){};update()});
+  });
+})();
 document.getElementById('clear').addEventListener('click',()=>{src.value='';state={};parse();render();src.focus()});
 
 function loadSample(){
