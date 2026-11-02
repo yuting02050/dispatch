@@ -104,7 +104,7 @@ pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--f-bod
 
   <div class="grid">
     <section class="panel left">
-      <div class="label">客資版（從臨時單群組貼上）<span style="float:right;font-weight:400;letter-spacing:0">版本 1102-C</span></div>
+      <div class="label">客資版（從臨時單群組貼上）<span style="float:right;font-weight:400;letter-spacing:0">版本 1102-D</span></div>
       <textarea id="src" spellcheck="false" placeholder="把臨時單整段貼在這裡，可以一次貼很多單"></textarea>
       <p class="hint">有特殊需求、非桃園機場、或桃園機場往返雙北桃園以外縣市時，會自動加標題列；其他行程在日期前加「明天」。</p>
       <div class="opts">
@@ -348,6 +348,7 @@ function transform(l,j,t){
   if(t&&j===t.h){
     x=x.replace(new RegExp('\\s*[／/、]\\s*(?:[\\u4e00-\\u9fff]{1,3}(?:先生|小姐|太太|女士))?\\s*'+PHONE,'g'),'');
     x=cleanHeader(x);
+    x=x.replace(/抵達\s*[（(]?\s*[\u4e00-\u9fff]{0,4}?(?:國際)?機場\s*(?:第?\s*[一二12１２]\s*航(?:廈|站)?|T\s*[12１２])?\s*[）)]?/g,'抵達');
   }
   if(t&&!t.charter){
     const before=x.trim();
