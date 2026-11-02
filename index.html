@@ -104,7 +104,7 @@ pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--f-bod
 
   <div class="grid">
     <section class="panel left">
-      <div class="label">客資版（從臨時單群組貼上）<span style="float:right;font-weight:400;letter-spacing:0">版本 1102-B</span></div>
+      <div class="label">客資版（從臨時單群組貼上）<span style="float:right;font-weight:400;letter-spacing:0">版本 1102-C</span></div>
       <textarea id="src" spellcheck="false" placeholder="把臨時單整段貼在這裡，可以一次貼很多單"></textarea>
       <p class="hint">有特殊需求、非桃園機場、或桃園機場往返雙北桃園以外縣市時，會自動加標題列；其他行程在日期前加「明天」。</p>
       <div class="opts">
@@ -275,7 +275,7 @@ function parse(){
     const p=+(head.match(/(\d+)\s*[人位]/)||[0,0])[1];
     const bseg=(head.match(/[人位][、，,]?\s*([^，,]*?(?:件|行李))/)||[,''])[1];
     const bm=bseg.match(/(\d+)\s*大/);
-    const b=bm?+bm[1]:(bseg.match(/\d+/g)||[]).reduce((a,x)=>a+ +x,0);
+    const b=bm?+bm[1]:[...bseg.matchAll(/(\d+)\s*(?=件|個|箱|顆|咖|大|小)/g)].reduce((a,x)=>a+ +x[1],0);
     const big=/大車|九人|9人座|9人車/.test(span);
     let cp='';const pm=span.match(/包車\s*\d+\s*(?:H|h|小時)?\s*[=＝]\s*([\d,]+)\s*元/)||span.match(/每天\s*([\d,]+)\s*元/);
     if(pm)cp=pm[1].replace(/,/g,'');
