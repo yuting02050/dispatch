@@ -104,7 +104,7 @@ pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--f-bod
 
   <div class="grid">
     <section class="panel left">
-      <div class="label">客資版（從臨時單群組貼上）<span style="float:right;font-weight:400;letter-spacing:0">版本 1102-D</span></div>
+      <div class="label">客資版（從臨時單群組貼上）<span style="float:right;font-weight:400;letter-spacing:0">版本 1102-E</span></div>
       <textarea id="src" spellcheck="false" placeholder="把臨時單整段貼在這裡，可以一次貼很多單"></textarea>
       <p class="hint">有特殊需求、非桃園機場、或桃園機場往返雙北桃園以外縣市時，會自動加標題列；其他行程在日期前加「明天」。</p>
       <div class="opts">
@@ -144,6 +144,8 @@ const NOTE=/^\s*(?:⚠|❗|‼|！|!|\*|＊|※)/;
 const KEEPNOTE=/舉牌|無[菸煙]|不抽[菸煙]|不安排|不要安排|不派|安全座椅|安椅|增高墊|提籃|收據|五年以內|代替|無托運|出關|快速通關/;
 const BOILER=/行程以您為主|無條件進位|實付實銷|食宿自理|挪用|報價全含|多日包車價格/;
 const NOTNAMEW=/[機車發達件李人稅派旅座趟程天日號時單點站場港改增搭含無大小休]/;
+const CONTACT=/[，,]?\s*(?:WhatsApp|Whatsapp|whatsapp|WHATSAPP|WA|LINE|Line|line|微信|WeChat|Wechat|wechat|Kakao(?:Talk)?|Telegram|Viber|Messenger)\s*(?:聯繫|聯絡|電話|ID|Id|id|號碼|帳號)?\s*[:：]?\s*[+＋]?[\w\d][\w\d\s\-+]{4,}[\w\d]/g;
+const INTL=/[，,]?\s*[+＋]\d{1,3}[\s-]?\d[\d\s-]{6,14}\d/g;
 function prep(l){return l.replace(/["“”＂]/g,'').replace(ARROW,'→').replace(/桃園國際機場/g,'桃園機場').replace(/\s+$/,'')}
 const TERMINAL=/(機場)\s*(?:第?[一二12１２]\s*航(?:廈|站)?|T\s*[12１２])/g;
 const BUILDING=/((?:路|街|大道|段|巷|弄))\s*(?:[（(][^）)\n]*[）)]|[\u4e00-\u9fff]{2,10}(?:社區|大樓|大廈|華廈|公寓|會館|山莊|新城|花園))/g;
@@ -344,7 +346,7 @@ function transform(l,j,t){
   if(LABEL.test(s))return null;
   if(/^\d+[、.]$/.test(s)||/^[+＋]$/.test(s))return null;
   if(SEP.test(s))return '------';
-  let x=stripNames(l).replace(/舉牌內容\s*[：:].*$/,'需舉牌');
+  let x=stripNames(l.replace(CONTACT,'').replace(INTL,'')).replace(/舉牌內容\s*[：:].*$/,'需舉牌');
   if(t&&j===t.h){
     x=x.replace(new RegExp('\\s*[／/、]\\s*(?:[\\u4e00-\\u9fff]{1,3}(?:先生|小姐|太太|女士))?\\s*'+PHONE,'g'),'');
     x=cleanHeader(x);
@@ -408,7 +410,7 @@ function generate(){
   const full=out2.map(o=>o.eff).filter(Boolean).join('\n------\n');
   const warns=[];
   full.split('\n').forEach(l=>{
-    if(new RegExp(PHONE).test(l)||new RegExp(LAND).test(l)||/\d\s*號/.test(l)||/先生|小姐|太太|女士/.test(l)||/[A-Za-z]{2,}\s+[A-Za-z]{2,}/.test(l))warns.push(l.trim());
+    if(new RegExp(PHONE).test(l)||new RegExp(LAND).test(l)||/\d\s*號/.test(l)||/先生|小姐|太太|女士/.test(l)||/[A-Za-z]{2,}\s+[A-Za-z]{2,}/.test(l)||/[+＋]\d{2,}/.test(l)||/whatsapp|微信|wechat/i.test(l))warns.push(l.trim());
   });
   return{full,per:out2.map(o=>({d:o.eff,base:o.base,r:o.r})),warns};
 }
