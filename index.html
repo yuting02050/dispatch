@@ -1,8 +1,13 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
 <title>小傑派單轉換器</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap">
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
 <style>
 /* Layout: dispatch desk — paste on the left, one card per trip on the right, each card ready to copy */
 :root{
@@ -39,6 +44,19 @@ button{font:inherit;font-size:.9rem;border-radius:7px;padding:7px 14px;cursor:po
 button:hover{border-color:var(--accent)}
 button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+button.line{background:#06c755;color:#fff;border-color:#06c755;font-weight:700}
+button.line:disabled{opacity:.45;cursor:not-allowed}
+.status{font-size:.82rem;color:var(--muted)}
+button.del{margin-left:auto;font-size:.8rem;padding:4px 10px;color:var(--muted)}
+button.del.armed{background:var(--warn-bg);color:var(--warn);border-color:var(--warn)}
+button.link{border:0;background:none;padding:0;color:var(--accent);font-size:.8rem;text-decoration:underline}
+.mini{display:block}
+.opts{display:flex;flex-direction:column;gap:6px}
+textarea.outta{min-height:120px;resize:none;overflow:hidden;font-family:var(--f-body);font-size:.88rem;line-height:1.55;background:var(--sunk);border-radius:6px;padding:10px;border:1px solid transparent}
+textarea.outta:focus{border-color:var(--accent)}
+.hide-fields .fields{display:none}
+.hide-driver .out.r{display:none}
+.hide-driver .outs{grid-template-columns:minmax(0,1fr)}
 button.done{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
 .check{display:flex;gap:6px;align-items:center;font-size:.9rem;color:var(--ink)}
 .hint{font-size:.82rem;color:var(--muted);margin:0}
@@ -74,6 +92,8 @@ pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--f-bod
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
+</head>
+<body>
 <div class="wrap">
   <header class="top">
     <h1>小傑派單轉換器</h1>
@@ -82,21 +102,26 @@ pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--f-bod
 
   <div class="grid">
     <section class="panel left">
-      <div class="label">客資版（從臨時單群組貼上）</div>
+      <div class="label">客資版（從臨時單群組貼上）<span style="float:right;font-weight:400;letter-spacing:0">版本 1102-A</span></div>
       <textarea id="src" spellcheck="false" placeholder="把臨時單整段貼在這裡，可以一次貼很多單"></textarea>
       <p class="hint">有特殊需求、非桃園機場、或桃園機場往返雙北桃園以外縣市時，會自動加標題列；其他行程在日期前加「明天」。</p>
+      <div class="opts">
+        <label class="check"><input type="checkbox" id="optFields"> 顯示輸入欄（車型、派價、收、回金、標題）</label>
+        <label class="check"><input type="checkbox" id="optDriver"> 顯示司機完整版</label>
+      </div>
       <div class="row">
         <button id="sample">載入範例</button>
         <button id="clear">清空</button>
       </div>
-      <p class="hint">新單可以直接接著貼在最下面，前面填好的車型和價格會留著；把文字刪掉，那趟的卡片就會消失。資料不會存起來，重新整理頁面就清掉。</p>
+      <p class="hint">新單可以直接接著貼在最下面，前面填好的車型和價格會留著；把文字刪掉，那趟的卡片就會消失。關掉再打開，還沒派完的資料會留著，按「清空」才會全部清掉。資料只存在這支手機上。</p>
     </section>
 
     <section class="right">
       <div class="bar">
         <span class="count" id="count"></span>
-        <button class="primary" id="copyAll">複製全部刷群版</button>
+        <div class="row"><button class="primary" id="copyAll">複製全部刷群版</button><button class="line" id="fwdAll">轉傳全部</button><button class="line" id="stageAll">分段送到暫存</button></div>
       </div>
+      <div class="status" id="liffStatus">LINE 連線中…</div>
       <div id="warn" class="warn" hidden></div>
       <div id="trips"></div>
     </section>
@@ -111,28 +136,29 @@ const PHONE='(?:\\+?886[-\\s]?|0)9\\d{2}[-\\s]?\\d{3}[-\\s]?\\d{3}';
 const LAND='(?:[（(]0\\d{1,2}[)）]\\s*\\d{3,4}[-\\s]?\\d{4}|\\b0[2-8]\\d?[-\\s]\\d{3,4}[-\\s]?\\d{4}\\b)';
 const NAME=/[一-鿿]{1,3}(?:先生|小姐|太太|女士)/g;
 const LABEL=/^(姓名|聯絡人|聯絡電話|乘客姓名|旅客姓名|訂購人|訂車人|客人|電話|手機|LINE\s*ID|身分證|護照|E-?mail|信箱)\s*[:：]/i;
-const ADDR=/((?:路|街|大道)(?:[一二三四五六七八九十0-9０-９]+段)?)\s*[0-9０-９一二三四五六七八九十]+(?:巷|弄|號|樓|之|-|F|f)[^→，,、\n）)（(]*?(?=結束|出發|下車|上車|$|[→，,、\s）)（(])/gm;
+const ADDR=/((?:路|街|大道)(?:[一二三四五六七八九十0-9０-９]+段)?)\s*[0-9０-９][^→，,、\n]*?(?=結束|出發|下車|上車|$|[→，,、])/gm;
+const ARROW=/\s*(?:[—\-─－–━=]{1,4}\s*[》>〉]|➡️?|⇒|→)\s*/g;
+const DATE=/(\d{1,2})\s*(?:\/|月)\s*(\d{1,2})/;
+const NOTE=/^\s*(?:⚠|❗|‼|！|!|\*|＊|※)/;
+const KEEPNOTE=/舉牌|無[菸煙]|不抽[菸煙]|不安排|不要安排|不派|安全座椅|安椅|增高墊|提籃|收據|五年以內|代替|無托運|出關|快速通關/;
+const BOILER=/行程以您為主|無條件進位|實付實銷|食宿自理|挪用|報價全含|多日包車價格/;
+const NOTNAMEW=/[機車發達件李人稅派旅座趟程天日號時單點站場港改增搭含無大小休]/;
+function prep(l){return l.replace(/["“”＂]/g,'').replace(ARROW,'→').replace(/桃園國際機場/g,'桃園機場').replace(/\s+$/,'')}
 const TERMINAL=/(機場)\s*(?:第?[一二12１２]\s*航(?:廈|站)?|T\s*[12１２])/g;
-const BUILDING=/((?:路|街|大道|段|巷|弄))\s*(?:[（(][^）)\n]*[）)]|[一-鿿]{2,10}(?:社區|大樓|大廈|華廈|公寓|會館|山莊|新城|花園))/g;
+const BUILDING=/((?:路|街|大道|段|巷|弄))\s*(?:[（(][^）)\n]*[）)]|[\u4e00-\u9fff]{2,10}(?:社區|大樓|大廈|華廈|公寓|會館|山莊|新城|花園))/g;
 const NEEDS=[[/安全座椅|安椅/,'安椅'],[/增高墊/,'增高墊'],[/輪椅/,'輪椅'],[/寵物/,'寵物']];
 const P8H=/(包車\s*\d+\s*(?:H|h|小時)?\s*[=＝]\s*)([\d,]*)(\s*元)/g;
 const PDAY=/(每天\s*)([\d,]*)(\s*元)/g;
 const VEHW='(?:(?:(?:小車|大車|休旅車?|大休旅)\\s*)?(?:[五5７7９9九七]\\s*人\\s*(?:車|座))|小車|大車|大休旅|休旅車?)(?:\\s*單趟)?|單趟';
-// 價格後面可能多一個 $ 或接（含稅）（未稅）
-const PTAIL='(?:\\s*[$＄])?(?:\\s*[（(]\\s*(?:含稅|未稅)\\s*[）)])?';
-const PRICE='(?:(?:(?:報價|價格|價錢|費用|車資|金額|總價|收費|共)\\s*[:：=＝]?\\s*)?(?:NT|TWD)?\\s*[$＄]\\s*[\\d,]+(?:\\s*元)?|[\\d,]{3,}\\s*[$＄]|(?:(?:報價|價格|價錢|費用|車資|金額|總價|收費|共)\\s*[:：=＝]?\\s*)?[\\d,]{3,}\\s*元)'+PTAIL;
+const PRICE='(?:(?:報價|價格|價錢|費用|車資|金額|總價|收費|共)\\s*[:：=＝]?\\s*)?(?:NT|TWD)?\\s*[$＄]\\s*[\\d,]+(?:\\s*元)?|[\\d,]{3,}\\s*[$＄]|(?:(?:報價|價格|價錢|費用|車資|金額|總價|收費|共)\\s*[:：=＝]?\\s*)?[\\d,]{3,}\\s*元';
 const VEHPRICE=new RegExp('(?:'+VEHW+')(?:\\s*[:：=＝,，]?\\s*(?:'+PRICE+'))?|(?:'+PRICE+')','g');
-const NOTNAME=/(車|發|達|機|件|李|箱|袋|船|站|場|港|點|分|座|時|路|街|號|樓|區|市|人|童|兒|位|名)$/;
-// 人數：4人、4位、4名、4大2小、2大人1小孩
-const PAX='(\\d+)\\s*(?:人|位|名|大(?!件|行李))';
-// 各種箭頭寫法統一成 →
-const ARROW=/\s*(?:[—–－\-─=＝]+\s*[》>＞]|[➡➔➜⇒→]️?)\s*/g;
+const NOTNAME=/(車|發|達|機|件|李|箱|袋|船|站|場|港|點|分|座|時|路|街|號|樓|區|市|人|童|兒)$/;
 function stripNames(x){
   x=x.replace(new RegExp('(?<=^|[，,\\s:：])([\\u4e00-\\u9fff]{2,4})\\s*[，,:：]?\\s*(?='+PHONE+')','g'),(m,n)=>NOTNAME.test(n)?m:'');
   x=x.replace(new RegExp('('+PHONE+')\\s*[（(]?\\s*([\\u4e00-\\u9fff]{2,4})\\s*[）)]?','g'),(m,ph,n)=>NOTNAME.test(n)?m:ph);
   return x;
 }
-const isHeader=l=>/\d{1,2}\/\d{1,2}/.test(l)&&new RegExp(PAX).test(l);
+const isHeader=l=>DATE.test(l)&&/\d+\s*[人位]/.test(l)&&!NOTE.test(l)&&!/^\s*[（(]?如/.test(l);
 const isTag=l=>/^\s*([（(][^）)]*[）)]|\d+[、.])\s*$/.test(l);
 const num=v=>v!==''&&v!=null&&!isNaN(+v);
 const fmt=v=>String(Math.round(+v));
@@ -165,7 +191,7 @@ function shortPlace(p){
 function rawStops(t){
   const stops=[];let mode=null,dest=null;
   for(let j=t.h+1;j<=t.e;j++){
-    const s=lines[j].trim();let m;
+    const s=prep(lines[j]).trim();let m;
     if((m=s.match(/^從以下地址依序到(.+?)[：:]?$/))){dest=m[1];mode=1;continue}
     if((m=s.match(/^從(.+?)依序到以下地址/))){stops.push(m[1]);mode=1;continue}
     if(mode&&(m=s.match(/^\d+[、.]\s*(.+)$/))){stops.push(m[1]);continue}
@@ -231,7 +257,7 @@ function footerOf(t){
 }
 
 function parse(){
-  lines=src.value.replace(/\r/g,'').split('\n').map(l=>SEP.test(l.trim())?l:l.replace(ARROW,'→'));
+  lines=src.value.replace(/\r/g,'').split('\n');
   const heads=[];lines.forEach((l,i)=>{if(isHeader(l))heads.push(i)});
   const next={},seen={};
   trips=heads.map((h,k)=>{
@@ -243,11 +269,9 @@ function parse(){
     const span=lines.slice(h,e+1).join('\n');
     const head=lines[h];
     const charter=/包車|每天\s*[\d,]*\s*元/.test(span)||/^D\d/m.test(span);
-    const dm=head.match(/(\d{1,2})\/(\d{1,2})/);
-    // 人數：4人、4位、2大1小 都算進去
-    const pm1=head.match(/(\d+)\s*大人?\s*(\d+)\s*小(?:孩|朋友|童)?(?!件|行李)/);
-    const p=pm1?(+pm1[1])+(+pm1[2]):+(head.match(new RegExp(PAX))||[0,0])[1];
-    const bseg=(head.match(/(?:人|位|名|小孩|小朋友|小童)[、，,]?\s*([^，,]*?(?:件|行李))/)||[,''])[1];
+    const dm=head.match(DATE);
+    const p=+(head.match(/(\d+)\s*[人位]/)||[0,0])[1];
+    const bseg=(head.match(/[人位][、，,]?\s*([^，,]*?(?:件|行李))/)||[,''])[1];
     const bm=bseg.match(/(\d+)\s*大/);
     const b=bm?+bm[1]:(bseg.match(/\d+/g)||[]).reduce((a,x)=>a+ +x,0);
     const big=/大車|九人|9人座|9人車/.test(span);
@@ -267,15 +291,62 @@ function parse(){
   trips.forEach(t=>{if(!t.st.titleEdited)t.st.title=autoTitle(t);syncPai(t)});
 }
 function syncPai(t){}
+function deleteTrip(i){
+  const t=trips[i];if(!t)return;
+  let a=t.s,b=t.e;
+  const prevEnd=i>0?trips[i-1].e:-1;
+  while(a-1>prevEnd&&!SEP.test(lines[a-1].trim()))a--;
+  while(b+1<lines.length&&(/^\s*$/.test(lines[b+1])||SEP.test(lines[b+1].trim())||/^\s*[+＋]\s*$/.test(lines[b+1])))b++;
+  lines.splice(a,b-a+1);
+  src.value=lines.join('\n').replace(/^\s+/,'');
+  parse();render();
+}
 
+function keepLine(s,t,j){
+  if(j===t.h)return true;
+  if(!s)return true;
+  if(BOILER.test(s))return false;
+  if(KEEPNOTE.test(s))return true;
+  if(NOTE.test(s))return false;
+  if(/^D\d/.test(s))return true;
+  if(s.includes('→'))return true;
+  if(/^從.+依序到/.test(s))return true;
+  if(/^\d+[、.]\s*\S*(市|縣|區|鄉|鎮|路|街|機場|港|站)/.test(s))return true;
+  if(/^[（(][^）)]*(機場|港|碼頭)[）)]$/.test(s))return true;
+  if(t.charter&&/包車|每天|超時|人車|人座/.test(s))return true;
+  return false;
+}
+function cleanHeader(x){
+  x=x.replace(/(\d{1,2})\s*月\s*(\d{1,2})\s*[號日]?/,'$1/$2');
+  x=x.replace(/[（(]\s*(?:小車|大車|休旅車?|大休旅)?\s*(?:含稅|未稅)[^）)]*[）)]?/g,'');
+  return x.split(/[，,]/).filter(seg=>{
+    const g=seg.trim();
+    if(/^[A-Za-z][A-Za-z .'\-]{2,}$/.test(g)&&!/\d/.test(g))return false;
+    if(/^[\u4e00-\u9fff]{2,4}$/.test(g)&&!NOTNAMEW.test(g))return false;
+    return true;
+  }).join('，');
+}
 function transform(l,j,t){
+  if(t){
+    l=prep(l);const s0=l.trim();
+    if(!keepLine(s0,t,j))return null;
+    if(j!==t.h&&KEEPNOTE.test(s0)){
+      if(/收據/.test(s0))return '⚠️請提供空白計程車收據';
+      if(/舉牌/.test(s0))return '⚠️需舉牌';
+      return s0.replace(new RegExp(PHONE,'g'),'');
+    }
+  }
   const s=l.trim();
-  if(/^\*/.test(s))return null;
+  if(/^\*/.test(s)&&!t)return null;
   if(/^「.*價格.*」$/.test(s))return null;
   if(LABEL.test(s))return null;
   if(/^\d+[、.]$/.test(s)||/^[+＋]$/.test(s))return null;
   if(SEP.test(s))return '------';
-  let x=stripNames(l);
+  let x=stripNames(l).replace(/舉牌內容\s*[：:].*$/,'需舉牌');
+  if(t&&j===t.h){
+    x=x.replace(new RegExp('\\s*[／/、]\\s*(?:[\\u4e00-\\u9fff]{1,3}(?:先生|小姐|太太|女士))?\\s*'+PHONE,'g'),'');
+    x=cleanHeader(x);
+  }
   if(t&&!t.charter){
     const before=x.trim();
     x=x.replace(VEHPRICE,'').replace(/[（(]\s*[）)]/g,'').replace(/[，,]\s*[，,]/g,'，').replace(/^\s*[，,、]\s*/,'');
@@ -298,12 +369,11 @@ function transform(l,j,t){
     }
   }
   x=x.replace(new RegExp(PHONE,'g'),'').replace(new RegExp(LAND,'g'),'').replace(NAME,'').replace(ADDR,'$1').replace(TERMINAL,'$1').replace(BUILDING,'$1');
-  // 拿掉個資後留下的分隔符號，例如「胡小姐0968…／吳小姐0974…」剩下的「／」
-  x=x.replace(/\s*[／/、]\s*(?=[，,]|$)/g,'').replace(/([）)])\s*[／/、]+/g,'$1');
   if(t&&t.charter){
     const p=num(t.st.pai)?fmt(t.st.pai):'';
     x=x.replace(P8H,(m,a,b,c)=>a+p+c).replace(PDAY,(m,a,b,c)=>a+(p||' ')+c).replace(/(超時[^。\n]*)。\s*$/,'$1');
   }
+  x=x.replace(/[$＄](?!\s*\d)/g,'').replace(/\s*[／]\s*(?=[，,]|$)/g,'');
   x=x.replace(/[，,]\s*[，,]/g,'，').replace(/\s+$/,'').replace(/[，,]$/,'');
   return x;
 }
@@ -331,26 +401,27 @@ function generate(){
     if(parts.length)per[i].r.push('',parts.join('／'));
   });
   const clean=a=>a.join('\n').replace(/\n{3,}/g,'\n\n').trim();
-  const full=per.map(p=>clean(p.d)).filter(Boolean).join('\n------\n');
+  const out2=per.map((p,i)=>{const base=clean(p.d),st=trips[i].st;return{base,eff:(st.ov!=null&&st.ovBase===base)?st.ov:base,r:clean(p.r)}});
+  const full=out2.map(o=>o.eff).filter(Boolean).join('\n------\n');
   const warns=[];
   full.split('\n').forEach(l=>{
-    if(new RegExp(PHONE).test(l)||new RegExp(LAND).test(l)||/\d\s*號/.test(l)||/先生|小姐|太太|女士/.test(l))warns.push(l.trim());
+    if(new RegExp(PHONE).test(l)||new RegExp(LAND).test(l)||/\d\s*號/.test(l)||/先生|小姐|太太|女士/.test(l)||/[A-Za-z]{2,}\s+[A-Za-z]{2,}/.test(l))warns.push(l.trim());
   });
-  return{full,per:per.map(p=>({d:clean(p.d),r:clean(p.r)})),warns};
+  return{full,per:out2.map(o=>({d:o.eff,base:o.base,r:o.r})),warns};
 }
 
 function render(){
-  tripsEl.innerHTML='';
+  tripsEl.innerHTML='';if(typeof resetStage==='function')resetStage();
   document.getElementById('count').textContent=trips.length?`共 ${trips.length} 趟`:'';
   if(!trips.length){
-    tripsEl.innerHTML=`<div class="empty">${src.value.trim()?'找不到行程。每趟的第一行需要有日期（例如 1/1）和人數（例如 2人3件、4位）。':'左邊貼上臨時單，這裡會一趟一張卡片。'}</div>`;
+    tripsEl.innerHTML=`<div class="empty">${src.value.trim()?'找不到行程。每趟的第一行需要有日期（例如 1/1）和人數（例如 2人3件）。':'左邊貼上臨時單，這裡會一趟一張卡片。'}</div>`;
     update();return;
   }
   trips.forEach((t,i)=>{
     const c=document.createElement('article');c.className='trip';
     const label=t.head.replace(new RegExp('[，,]?\\s*'+PHONE,'g'),'').trim();
     c.innerHTML=`
-      <div class="trip-head"><span class="no">#${i+1}</span><span class="trip-title">${esc(label)}</span>${t.charter?'<span class="pill">包車</span>':''}</div>
+      <div class="trip-head"><span class="no">#${i+1}</span><span class="trip-title">${esc(label)}</span>${t.charter?'<span class="pill">包車</span>':''}<button class="del" data-del="${i}">派完，刪除</button></div>
       <div class="fields">
         ${`<label class="f"><span>車型</span><select id="veh${i}">${VEHS.map(v=>`<option${v===t.st.veh?' selected':''}>${v}</option>`).join('')}${VEHS.includes(t.st.veh)?'':`<option selected>${esc(t.st.veh)}</option>`}</select></label>`}
         <label class="f"><span>收（客人付）</span><input id="shou${i}" type="number" inputmode="numeric" value="${esc(t.st.shou)}"></label>
@@ -359,7 +430,7 @@ function render(){
         ${`<label class="f wide"><span>刷群標題列（空白就不加）</span><input id="title${i}" type="text" value="${esc(t.st.title)}"></label>`}
       </div>
       <div class="outs">
-        <div class="out d"><div class="out-head"><span class="tag d">刷群版</span><button data-copy="d" data-i="${i}">複製</button></div><pre id="d${i}"></pre></div>
+        <div class="out d"><div class="out-head"><span class="tag d">刷群版</span><span class="row"><button data-copy="d" data-i="${i}">複製</button><button class="line" data-fwd="${i}">轉傳</button></span></div><textarea class="outta" id="d${i}" spellcheck="false"></textarea><span class="mini" id="dr${i}" hidden><button class="link" data-reset="${i}">還原成自動產生的內容</button></span></div>
         <div class="out r"><div class="out-head"><span class="tag r">司機完整版</span><button data-copy="r" data-i="${i}">複製</button></div><pre id="r${i}"></pre></div>
       </div>`;
     tripsEl.appendChild(c);
@@ -369,15 +440,21 @@ function render(){
     on('hui','input',e=>{t.st.hui=e.target.value;update()});
     on('pai','input',e=>{t.st.pai=e.target.value;update()});
     on('title','input',e=>{t.st.title=e.target.value;t.st.titleEdited=true;update()});
+    on('d','input',e=>{t.st.ov=e.target.value;t.st.ovBase=last.per[i]&&last.per[i].base;update(true)});
   });
   update();
 }
 let last={full:'',per:[]};
-function update(){
-  last=generate();
+function fit(el){el.style.height='auto';el.style.height=(el.scrollHeight+2)+'px'}
+function save(){try{localStorage.setItem('srcText',src.value);localStorage.setItem('tripState',JSON.stringify(state))}catch(e){}}
+function update(fromEdit){
+  last=generate();save();
   last.per.forEach((p,i)=>{
-    const d=document.getElementById('d'+i),r=document.getElementById('r'+i);
-    if(d)d.textContent=p.d;if(r)r.textContent=p.r;
+    const d=document.getElementById('d'+i),r=document.getElementById('r'+i),dr=document.getElementById('dr'+i);
+    if(d&&!(fromEdit&&document.activeElement===d)){d.value=p.d}
+    if(d)fit(d);
+    if(dr)dr.hidden=(p.d===p.base);
+    if(r)r.textContent=p.r;
   });
   const w=document.getElementById('warn');
   if(last.warns.length){
@@ -399,11 +476,100 @@ tripsEl.addEventListener('click',e=>{
   const b=e.target.closest('button[data-copy]');if(!b)return;
   const p=last.per[+b.dataset.i];if(p)copy(b.dataset.copy==='d'?p.d:p.r,b);
 });
+const delArm={};
+tripsEl.addEventListener('click',e=>{
+  const rb=e.target.closest('button[data-reset]');
+  if(rb){const t=trips[+rb.dataset.reset];if(t){t.st.ov=null;update()}return}
+  const b=e.target.closest('button[data-del]');if(!b)return;
+  const i=+b.dataset.del;
+  if(delArm[i]){deleteTrip(i);return}
+  delArm[i]=1;b.textContent='再按一次確定刪除';b.classList.add('armed');
+  setTimeout(()=>{delete delArm[i];if(b.isConnected){b.textContent='派完，刪除';b.classList.remove('armed')}},3000);
+});
+const LIFF_ID='2012285713-filVz2D1';
+let liffReady=false;
+const st=document.getElementById('liffStatus');
+(async()=>{
+  try{
+    if(!window.liff||/在這裡/.test(LIFF_ID))throw new Error('LIFF ID 還沒設定');
+    await liff.init({liffId:LIFF_ID});
+    if(!liff.isLoggedIn()){liff.login({redirectUri:location.href});return}
+    liffReady=true;st.textContent='';
+  }catch(e){st.textContent=''}
+})();
+function chunks(text){
+  const parts=text.split('\n------\n'),out=[];let cur='';
+  parts.forEach(p=>{const n=cur?cur+'\n------\n'+p:p;if(n.length>4800&&cur){out.push(cur);cur=p}else cur=n});
+  if(cur)out.push(cur);return out;
+}
+async function share(text,btn){
+  if(!text)return;
+  if(!liffReady){copy(text,btn);return}
+  const msgs=chunks(text).map(t=>({type:'text',text:t}));
+  if(msgs.length>5){st.textContent='內容太長，請分批分享（一次最多約 5 則訊息）。';return}
+  try{
+    const res=await liff.shareTargetPicker(msgs,{isMultiple:true});
+    st.textContent=res?'已送出分享。':'已取消分享。';
+  }catch(e){st.textContent='分享失敗：'+(e.message||e)}
+}
+function fwd(text){
+  if(!text)return;
+  const url='https://line.me/R/share?text='+encodeURIComponent(text);
+  try{ if(liffReady&&liff.isInClient()){liff.openWindow({url,external:false});return} }catch(e){}
+  location.href=url;
+}
+tripsEl.addEventListener('click',e=>{
+  const b=e.target.closest('button[data-fwd]');if(!b)return;
+  const p=last.per[+b.dataset.fwd];if(p)fwd(p.d);
+});
+document.getElementById('fwdAll').addEventListener('click',()=>fwd(last.full));
+let stageIdx=0;
+function resetStage(){stageIdx=0;const b=document.getElementById('stageAll');if(b)b.textContent='分段送到暫存'}
+document.getElementById('stageAll').addEventListener('click',async e=>{
+  const btn=e.target;
+  const texts=last.per.map(p=>p.d).filter(Boolean);
+  if(!texts.length)return;
+  let ok=false;try{ok=liffReady&&liff.isApiAvailable('shareTargetPicker')}catch(_){}
+  if(!ok){st.textContent='這個功能要在 LINE 裡打開轉換器才能用。';return}
+  if(stageIdx>=texts.length)stageIdx=0;
+  const batch=texts.slice(stageIdx,stageIdx+5);
+  try{
+    const res=await liff.shareTargetPicker(batch.map(t=>({type:'text',text:t.slice(0,4900)})),{isMultiple:true});
+    if(!res){st.textContent='已取消，沒有送出。';return}
+    stageIdx+=batch.length;
+    if(stageIdx<texts.length){
+      btn.textContent=`送下一批（第${stageIdx+1}～${Math.min(stageIdx+5,texts.length)}趟）`;
+      st.textContent=`已送出第 1～${stageIdx} 趟，還有 ${texts.length-stageIdx} 趟，請再按一次。`;
+    }else{
+      resetStage();
+      st.textContent=`${texts.length} 趟都送到暫存了。到暫存群組長按訊息、勾選要轉傳的幾則，再按轉傳。`;
+    }
+  }catch(err){st.textContent='送出失敗：'+(err.message||err)}
+});
+tripsEl.addEventListener('click',e=>{
+  const b=e.target.closest('button[data-share]');if(!b)return;
+  const p=last.per[+b.dataset.share];if(p)share(p.d,b);
+});
+
 document.getElementById('copyAll').addEventListener('click',e=>{if(last.full)copy(last.full,e.target)});
 
 let tm;
 src.addEventListener('input',()=>{clearTimeout(tm);tm=setTimeout(()=>{parse();render()},250)});
-document.getElementById('clear').addEventListener('click',()=>{src.value='';state={};parse();render();src.focus()});
+(function(){
+  const root=document.documentElement,keys={optFields:'hide-fields',optDriver:'hide-driver'};
+  Object.entries(keys).forEach(([id,cls])=>{
+    const el=document.getElementById(id);let on=false;
+    try{on=localStorage.getItem(id)==='1'}catch(e){}
+    el.checked=on;root.classList.toggle(cls,!on);
+    el.addEventListener('change',()=>{root.classList.toggle(cls,!el.checked);try{localStorage.setItem(id,el.checked?'1':'0')}catch(e){};update()});
+  });
+})();
+document.getElementById('clear').addEventListener('click',e=>{
+  const b=e.target;
+  if(!b.dataset.armed){b.dataset.armed='1';b.textContent='再按一次確定清空';setTimeout(()=>{delete b.dataset.armed;b.textContent='清空'},3000);return}
+  delete b.dataset.armed;b.textContent='清空';
+  src.value='';state={};try{localStorage.removeItem('srcText');localStorage.removeItem('tripState')}catch(_){}
+  parse();render();src.focus()});
 
 function loadSample(){
   const t=new Date();t.setDate(t.getDate()+1);const md=`${t.getMonth()+1}/${t.getDate()}`;
@@ -432,8 +598,9 @@ ${md}，上午10:00出發，1人1件，0987-654-321
   render();
 }
 document.getElementById('sample').addEventListener('click',loadSample);
-loadSample();
+try{const t=localStorage.getItem('srcText');if(t){src.value=t;state=JSON.parse(localStorage.getItem('tripState')||'{}')||{}}}catch(e){}
+parse();render();
 })();
 </script>
-
-</body></html>
+</body>
+</html>
