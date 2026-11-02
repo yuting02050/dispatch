@@ -57,6 +57,8 @@ textarea.outta:focus{border-color:var(--accent)}
 .hide-fields .fields{display:none}
 .hide-driver .out.r{display:none}
 .hide-driver .outs{grid-template-columns:minmax(0,1fr)}
+.fields2{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 16px;padding:12px 14px}
+.fields2 .f.pai{width:140px}
 button.done{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
 .check{display:flex;gap:6px;align-items:center;font-size:.9rem;color:var(--ink)}
 .hint{font-size:.82rem;color:var(--muted);margin:0}
@@ -102,11 +104,10 @@ pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--f-bod
 
   <div class="grid">
     <section class="panel left">
-      <div class="label">客資版（從臨時單群組貼上）<span style="float:right;font-weight:400;letter-spacing:0">版本 1102-A</span></div>
+      <div class="label">客資版（從臨時單群組貼上）<span style="float:right;font-weight:400;letter-spacing:0">版本 1102-B</span></div>
       <textarea id="src" spellcheck="false" placeholder="把臨時單整段貼在這裡，可以一次貼很多單"></textarea>
       <p class="hint">有特殊需求、非桃園機場、或桃園機場往返雙北桃園以外縣市時，會自動加標題列；其他行程在日期前加「明天」。</p>
       <div class="opts">
-        <label class="check"><input type="checkbox" id="optFields"> 顯示輸入欄（車型、派價、收、回金、標題）</label>
         <label class="check"><input type="checkbox" id="optDriver"> 顯示司機完整版</label>
       </div>
       <div class="row">
@@ -253,7 +254,8 @@ function autoTitle(t){
   return `${day}${v}${core}${needs.length?'，要'+needs.join('、'):''}`;
 }
 function footerOf(t){
-  return `*自己跑、不洗客、服務好、${t.st.veh}${kindOf(t)==='接機'?' R牌':'TR牌可'}，大可替小，可以的@我🙏🏻*`;
+  const big=t.st.veh==='大車';
+  return `*自己跑、不洗客、服務好、${t.st.veh}${kindOf(t)==='接機'?' R牌':'TR牌可'}，${big?'':'大可替小，'}可以的@我🙏🏻*`;
 }
 
 function parse(){
@@ -383,7 +385,7 @@ function generate(){
   const before={},after={};
   trips.forEach(t=>{
     if(t.st.title.trim())before[t.s]=[t.st.title.trim(),''];
-    after[t.e]=['',footerOf(t)];
+    after[t.e]=t.st.foot===false?[]:['',footerOf(t)];
   });
   const out=[],per=trips.map(()=>({d:[],r:[]}));
   lines.forEach((l,j)=>{
@@ -422,12 +424,9 @@ function render(){
     const label=t.head.replace(new RegExp('[，,]?\\s*'+PHONE,'g'),'').trim();
     c.innerHTML=`
       <div class="trip-head"><span class="no">#${i+1}</span><span class="trip-title">${esc(label)}</span>${t.charter?'<span class="pill">包車</span>':''}<button class="del" data-del="${i}">派完，刪除</button></div>
-      <div class="fields">
-        ${`<label class="f"><span>車型</span><select id="veh${i}">${VEHS.map(v=>`<option${v===t.st.veh?' selected':''}>${v}</option>`).join('')}${VEHS.includes(t.st.veh)?'':`<option selected>${esc(t.st.veh)}</option>`}</select></label>`}
-        <label class="f"><span>收（客人付）</span><input id="shou${i}" type="number" inputmode="numeric" value="${esc(t.st.shou)}"></label>
-        <label class="f"><span>回金</span><input id="hui${i}" type="number" inputmode="numeric" value="${esc(t.st.hui)}"></label>
-        <label class="f"><span>派價（可留空）</span><input id="pai${i}" type="number" inputmode="numeric" value="${esc(t.st.pai)}" placeholder="例：750"></label>
-        ${`<label class="f wide"><span>刷群標題列（空白就不加）</span><input id="title${i}" type="text" value="${esc(t.st.title)}"></label>`}
+      <div class="fields2">
+        <label class="f pai"><span>派價</span><input id="pai${i}" type="number" inputmode="numeric" value="${esc(t.st.pai)}" placeholder="例：750"></label>
+        <label class="check foot"><input type="checkbox" id="foot${i}"${t.st.foot===false?'':' checked'}> 加上結尾那行</label>
       </div>
       <div class="outs">
         <div class="out d"><div class="out-head"><span class="tag d">刷群版</span><span class="row"><button data-copy="d" data-i="${i}">複製</button><button class="line" data-fwd="${i}">轉傳</button></span></div><textarea class="outta" id="d${i}" spellcheck="false"></textarea><span class="mini" id="dr${i}" hidden><button class="link" data-reset="${i}">還原成自動產生的內容</button></span></div>
@@ -439,6 +438,7 @@ function render(){
     on('shou','input',e=>{t.st.shou=e.target.value;update()});
     on('hui','input',e=>{t.st.hui=e.target.value;update()});
     on('pai','input',e=>{t.st.pai=e.target.value;update()});
+    on('foot','change',e=>{t.st.foot=e.target.checked;update()});
     on('title','input',e=>{t.st.title=e.target.value;t.st.titleEdited=true;update()});
     on('d','input',e=>{t.st.ov=e.target.value;t.st.ovBase=last.per[i]&&last.per[i].base;update(true)});
   });
@@ -556,7 +556,7 @@ document.getElementById('copyAll').addEventListener('click',e=>{if(last.full)cop
 let tm;
 src.addEventListener('input',()=>{clearTimeout(tm);tm=setTimeout(()=>{parse();render()},250)});
 (function(){
-  const root=document.documentElement,keys={optFields:'hide-fields',optDriver:'hide-driver'};
+  const root=document.documentElement,keys={optDriver:'hide-driver'};
   Object.entries(keys).forEach(([id,cls])=>{
     const el=document.getElementById(id);let on=false;
     try{on=localStorage.getItem(id)==='1'}catch(e){}
